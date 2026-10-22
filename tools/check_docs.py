@@ -4,6 +4,7 @@
 Run: PYTHONIOENCODING=utf-8 python tools/check_docs.py
 Exit code 0 = all checks pass.
 """
+import json
 import re
 import sys
 from pathlib import Path
@@ -19,9 +20,9 @@ REQUIRED = [
 errors: list[str] = []
 
 LINE_BUDGET = {
-    "00-设计总纲.md": 545, "10-玩法架构.md": 1010, "20-增益与局外成长.md": 580,
-    "30-技术架构.md": 1010, "40-美术与UX规范.md": 840, "50-数值与平衡.md": 300,
-    "60-里程碑与验收.md": 310, "README.md": 140,
+    "00-设计总纲.md": 555, "10-玩法架构.md": 945, "20-增益与局外成长.md": 560,
+    "30-技术架构.md": 910, "40-美术与UX规范.md": 835, "50-数值与平衡.md": 300,
+    "60-里程碑与验收.md": 160, "README.md": 110,
 }
 
 
@@ -47,6 +48,10 @@ stale = {
     "balanced D=1.45": re.compile(r"(balanced\s*:\s*1\.45|1\.45\s*/\s*2\.00)"),
     "硬编码 7.12": re.compile(r"7\.12"),
     "旧 Boss HP 4272": re.compile(r"4272"),
+    "pnpm command": re.compile(r"\bpnpm\b"),
+    "old Vite 8": re.compile(r"Vite 8"),
+    "M0 no-code status": re.compile(r"M0 设计阶段|尚无运行时代码|M0 定稿"),
+    "old boss path": re.compile(r"src/game/boss/\*"),
 }
 for name, pat in stale.items():
     hits = [f for f, t in texts.items() if pat.search(t)]
@@ -126,10 +131,10 @@ headings = {
     "00-设计总纲.md": "## 7. Canon 数值与公式",
     "10-玩法架构.md": "## 8. 根目录 Boss 设计草案",
     "20-增益与局外成长.md": "## 3. 87 键键盘",
-    "30-技术架构.md": "## 9. Iconify 资产管线（重点）",
+    "30-技术架构.md": "## 9. Iconify 资产管线（计划，当前未接入）",
     "40-美术与UX规范.md": "## 6. 界面清单与线框",
     "50-数值与平衡.md": "## 5. 经济与养成",
-    "60-里程碑与验收.md": "## 9. 测试矩阵",
+    "60-里程碑与验收.md": "## 4. 测试矩阵",
 }
 for f, h in headings.items():
     check(f"heading: {h[:14]}", h in texts[f])
@@ -168,7 +173,7 @@ legacy_paths = ["src/game/balance.ts", "src/data/balance.ts", "src/core/save.ts"
                 "src/data/bosses"]
 check("no legacy code paths", not any(p in t for t in texts.values() for p in legacy_paths))
 check("boss scripts path",
-      all("src/game/boss/*.ts" in texts[f] for f in ["10-玩法架构.md", "60-里程碑与验收.md"]))
+      all("src/game/boss.ts" in texts[f] for f in ["10-玩法架构.md", "60-里程碑与验收.md"]))
 check("no stale buff 散热器", "`散热器`" not in texts["00-设计总纲.md"] and "散热器 │" not in texts["40-美术与UX规范.md"])
 check("20 boss pool full -> rare +50", "3 张稀有卡 + 50 碎片" in texts["20-增益与局外成长.md"])
 check("boss pool full rule in 00/10/20",
@@ -204,7 +209,6 @@ check("i18n reserved in 00/30/40",
           ["00-设计总纲.md", "30-技术架构.md", "40-美术与UX规范.md"])
       and "ADR-013" in texts["00-设计总纲.md"]
       and "Locale = 'zh-CN' | 'en-US'" in texts["30-技术架构.md"]
-      and "i18n:check" in texts["30-技术架构.md"]
       and "settings.language" in texts["20-增益与局外成长.md"]
       and "1.4×" in texts["40-美术与UX规范.md"])
 check("30 language enum", "language: Locale" in texts["30-技术架构.md"]
@@ -233,7 +237,7 @@ check("40 codex card count 117", "≤117" in texts["40-美术与UX规范.md"])
 check("50 RAM cap 7–9", "| 高性能 | 1–2 | 2–3 | 2–4 | 5 | 7–9 | 2–4 |" in texts["50-数值与平衡.md"])
 check("60 section refs",
       all(s in texts["60-里程碑与验收.md"] for s in
-          ["`10 §5` 敌人行为", "`10 §6` 波次", "`10 §8` Boss", "`20 §3` 键帽", "`20 §6` 存档"])
+          ["`10 §5` 敌人", "`10 §6` 波次", "`10 §8` Boss", "`20 §3` 键帽", "`20 §6` 存档"])
       and not any(s in texts["60-里程碑与验收.md"] for s in
                   ["`10 §4` 敌人行为", "`10 §5` 波次", "`20 §4` 键帽", "`20 §8` 存档"]))
 check("10 no duplicate M matrix", "| 1 | 1.00 | 1.00 | 1.30 | 1.60 |" not in texts["10-玩法架构.md"])
@@ -259,6 +263,62 @@ d_ids = re.findall(r"^\| `(D-\d+)`", texts["10-玩法架构.md"], flags=re.M)
 check("unique D ids", len(d_ids) == len(set(d_ids)),
       ", ".join(sorted({x for x in d_ids if d_ids.count(x) > 1})))
 check("no nonexistent spawnAnchor API", "spawnAnchor" not in "".join(texts.values()))
+
+# v0.2.0 implementation-alignment invariants
+STATUS = "M4 完成，M5/M6 部分"
+check("status aligned across all docs", all(STATUS in t for t in texts.values()))
+
+impl_files = [
+    "src/main.ts", "src/game/run.ts", "src/game/spawner.ts", "src/game/boss.ts",
+    "src/game/buffs.ts", "src/data/formulas.ts", "src/data/buffs.ts",
+    "src/data/keycaps.ts", "src/data/styles.ts", "src/meta/save.ts",
+    "src/meta/store.ts", "src/i18n/index.ts", "src/render/renderer.ts",
+    "src/ui/ui.ts", "public/sw.js", "public/manifest.webmanifest",
+]
+check("implementation files exist", all((ROOT / p).is_file() for p in impl_files),
+      ", ".join(p for p in impl_files if not (ROOT / p).is_file()))
+
+pkg = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+check("package scripts are documented set",
+      set(pkg.get("scripts", {})) == {"dev", "build", "preview", "typecheck", "test"},
+      str(sorted(pkg.get("scripts", {}))))
+check("runtime dependencies empty", pkg.get("dependencies") == {}, str(pkg.get("dependencies")))
+check("docs README commands",
+      all(s in readme for s in ["npm install", "npm run dev", "npm test",
+                                "npm run typecheck", "npm run build",
+                                "python tools/check_docs.py"]))
+check("docs README status vocabulary",
+      all(s in readme for s in ["已实现", "部分实现", "计划"]))
+check("icon pipeline marked planned",
+      "（计划，当前未接入）" in texts["30-技术架构.md"]
+      and "当前构建未接入" in texts["40-美术与UX规范.md"]
+      and "当前可玩构建" in texts["00-设计总纲.md"]
+      and "首字母磁贴" in texts["00-设计总纲.md"])
+check("30 current font is system monospace", "系统等宽字体" in texts["30-技术架构.md"])
+check("60 milestone table present",
+      all(re.search(rf"\|\s*{m}\s*\|", texts["60-里程碑与验收.md"]) for m in
+          ["M0", "M1", "M2", "M3", "M4", "M5", "M6"]))
+check("test count documented", "17" in readme and "17" in texts["60-里程碑与验收.md"])
+
+bad_current_paths = [
+    "src/game/boss/*.ts", "src/data/waves.ts", "src/meta/economy.ts",
+    "src/ui/screens/", "src/ecs/systems/", "src/core/hash.ts",
+    "src/ui/tokens.css", "src/render/tokens.ts", "boot/loading.ts",
+]
+check("no nonexistent current paths",
+      not any(p in t for t in texts.values() for p in bad_current_paths))
+
+# relative markdown links in docs + root README must resolve
+root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
+for f, t in list(texts.items()) + [("ROOT README.md", root_readme)]:
+    base = ROOT if f == "ROOT README.md" else DOCS
+    for target in re.findall(r"\]\(([^)]+)\)", t):
+        if target.startswith(("http://", "https://", "#", "mailto:")):
+            continue
+        clean = target.split("#", 1)[0]
+        if not clean:
+            continue
+        check(f"link resolves: {f} -> {clean}", (base / clean).resolve().exists())
 
 print()
 if errors:
