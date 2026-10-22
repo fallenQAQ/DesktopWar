@@ -134,8 +134,11 @@ headings = {
 for f, h in headings.items():
     check(f"heading: {h[:14]}", h in texts[f])
 
-# v0.1.4 consistency invariants
-check("all docs at v0.1.4", all("v0.1.4" in t for t in texts.values()))
+# v0.1.5 consistency invariants
+version_match = re.search(r"版本：v(\d+\.\d+\.\d+)", texts["00-设计总纲.md"])
+current_version = f"v{version_match.group(1)}" if version_match else ""
+check("Canon version present", bool(current_version))
+check("all docs at current version", bool(current_version) and all(current_version in t for t in texts.values()))
 check("00 run length 12–35",
       all(s in texts["00-设计总纲.md"] for s in ["12–16", "18–24", "25–35"])
       and "12–25" not in texts["00-设计总纲.md"])
@@ -235,6 +238,27 @@ check("60 section refs",
                   ["`10 §4` 敌人行为", "`10 §5` 波次", "`20 §4` 键帽", "`20 §8` 存档"]))
 check("10 no duplicate M matrix", "| 1 | 1.00 | 1.00 | 1.30 | 1.60 |" not in texts["10-玩法架构.md"])
 check("20 no duplicate fragment formula", "raw  = 0.5 × 击杀数" not in texts["20-增益与局外成长.md"])
+check("spawn rule in Canon",
+      "ADR-014" in texts["00-设计总纲.md"]
+      and all(s in texts["00-设计总纲.md"] for s in ["可视安全区", "定点/绕行型"]))
+check("spawn rule in 10",
+      all(s in texts["10-玩法架构.md"] for s in
+          ["出生位置（追击型）", "出生位置（定点/绕行型）", "可视安全区内"]))
+check("no global offscreen spawn rule",
+      "| 出生位置 | 屏幕外环" not in texts["10-玩法架构.md"]
+      and "8 次失败排到队尾" not in texts["10-玩法架构.md"])
+check("spawn rule synced in 30/60",
+      "可视安全区" in texts["30-技术架构.md"]
+      and "出生点边界" in texts["60-里程碑与验收.md"]
+      and "spawner.test.ts" in texts["60-里程碑与验收.md"])
+check("updater orbit matches safe area",
+      "86 × 52 px" in texts["10-玩法架构.md"]
+      and "D-35" in texts["10-玩法架构.md"]
+      and "半径 160 px" not in texts["10-玩法架构.md"])
+d_ids = re.findall(r"^\| `(D-\d+)`", texts["10-玩法架构.md"], flags=re.M)
+check("unique D ids", len(d_ids) == len(set(d_ids)),
+      ", ".join(sorted({x for x in d_ids if d_ids.count(x) > 1})))
+check("no nonexistent spawnAnchor API", "spawnAnchor" not in "".join(texts.values()))
 
 print()
 if errors:

@@ -1,0 +1,12 @@
+{
+  "name": "DesktopWar / 桌面战争",
+  "short_name": "DesktopWar",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0B1220",
+  "theme_color": "#0B1220",
+  "icons": []
+}
