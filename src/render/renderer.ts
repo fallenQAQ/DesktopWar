@@ -23,6 +23,14 @@ export interface BossView {
   window: number;
 }
 
+export interface SpawnWarningView {
+  x: number;
+  y: number;
+  size: number;
+  progress: number;
+  age: number;
+}
+
 export interface RenderView {
   active: boolean;
   world: World;
@@ -44,6 +52,7 @@ export interface RenderView {
   ram: number;
   maxRam: number;
   playerAlpha: number;
+  warnings: readonly SpawnWarningView[];
 }
 
 interface FloatingText {
@@ -227,7 +236,8 @@ export class Renderer {
     }
 
     this.drawEnemyBullets(view, alpha);
-    this.drawEnemies(view, alpha);
+    this.drawEnemies(view, alpha, nowMs);
+    this.drawPendingWarnings(view, nowMs);
     this.drawPlayerBullets(view, alpha);
     this.drawPlayer(view, alpha);
     this.drawFx(view, alpha);
@@ -240,7 +250,7 @@ export class Renderer {
     this.drawTexts();
   }
 
-  private drawEnemies(view: RenderView, alpha: number): void {
+  private drawEnemies(view: RenderView, alpha: number, nowMs: number): void {
     const ctx = this.ctx;
     const w = view.world;
     const c = w.c;
@@ -254,8 +264,11 @@ export class Renderer {
       const x = lerp(c.px[idx]!, c.x[idx]!, alpha);
       const y = lerp(c.py[idx]!, c.y[idx]!, alpha);
       const spawn = c.spawnTimer[idx]!;
-      const spawnScale = spawn > 0 ? lerp(0.68, 1, 1 - spawn / 0.4) : 1;
-      const alphaMul = spawn > 0 ? 0.4 + 0.6 * (1 - spawn / 0.4) : 1;
+      const spawnTotal = tier === 1 ? 0.8 : 0.4;
+      const spawnProgress = spawn > 0 ? clamp(1 - spawn / spawnTotal, 0, 1) : 1;
+      const spawnEase = 1 - (1 - spawnProgress) ** 3;
+      const spawnScale = spawn > 0 ? lerp(0.68, 1, spawnEase) : 1;
+      const alphaMul = spawn > 0 ? 0.25 + 0.65 * spawnEase : 1;
       const half = (size * spawnScale) / 2;
       ctx.save();
       ctx.globalAlpha = alphaMul;
@@ -306,7 +319,97 @@ export class Renderer {
         ctx.stroke();
       }
       ctx.restore();
+      if ((c.flags[idx]! & Flags.Warn) !== 0) {
+        const fadeIn = clamp(c.warnAge[idx]! / 0.2, 0, 1);
+        const fadeOut = spawn > 0 ? clamp(spawn / 0.15, 0, 1) : 1;
+        this.drawSpawnWarning(x, y, size, spawnProgress, Math.min(fadeIn, fadeOut), nowMs);
+      }
     }
+  }
+
+  private drawPendingWarnings(view: RenderView, nowMs: number): void {
+    for (const warning of view.warnings) {
+      const fade = clamp(warning.age / 0.2, 0, 1);
+      this.drawSpawnWarning(
+        warning.x,
+        warning.y,
+        warning.size,
+        warning.progress,
+        fade,
+        nowMs,
+      );
+    }
+  }
+
+  private drawSpawnWarning(
+    x: number,
+    y: number,
+    size: number,
+    progress: number,
+    fade: number,
+    nowMs: number,
+  ): void {
+    if (fade <= 0) return;
+    const ctx = this.ctx;
+    const time = nowMs / 1000;
+    const beat = 0.5 + 0.5 * Math.sin(time * 9);
+    const pulse = 1 + 0.1 * beat;
+    const marginX = 24;
+    const top = 56;
+    const bottom = 48;
+    const onScreen = x >= marginX && x <= LOGICAL_W - marginX && y >= top && y <= LOGICAL_H - bottom;
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#FBBF24';
+    ctx.fillStyle = '#FBBF24';
+    if (onScreen) {
+      const r = size * (0.95 - 0.2 * progress) * pulse;
+      ctx.globalAlpha = (0.32 + 0.3 * beat) * fade;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 5]);
+      ctx.lineDashOffset = -time * 26;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.globalAlpha = (0.18 + 0.22 * beat) * fade;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, size * 0.52 * (1.08 - 0.12 * progress), 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.globalAlpha = (0.4 + 0.25 * beat) * fade;
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 4; i++) {
+        const angle = Math.PI / 4 + i * (Math.PI / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(angle) * (r + 3), y + Math.sin(angle) * (r + 3));
+        ctx.lineTo(x + Math.cos(angle) * (r + 8), y + Math.sin(angle) * (r + 8));
+        ctx.stroke();
+      }
+    } else {
+      const mx = clamp(x, marginX, LOGICAL_W - marginX);
+      const my = clamp(y, top, LOGICAL_H - bottom);
+      const scale = 1 + 0.08 * beat;
+      ctx.globalAlpha = (0.4 + 0.3 * beat) * fade;
+      ctx.translate(mx, my);
+      ctx.rotate(Math.atan2(y - my, x - mx));
+      ctx.scale(scale, scale);
+      ctx.beginPath();
+      ctx.moveTo(12, 0);
+      ctx.lineTo(-4, -7);
+      ctx.lineTo(-4, 7);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = (0.25 + 0.2 * beat) * fade;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, 16 * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   private drawPlayerBullets(view: RenderView, alpha: number): void {

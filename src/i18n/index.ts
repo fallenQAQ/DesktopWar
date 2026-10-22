@@ -166,7 +166,7 @@ const zhCN: Record<string, string> = {
   'settings.import_failed': '存档格式不正确 · 请选择由本游戏导出的 JSON 文件',
   'settings.imported': '已导入，返回桌面生效',
   'settings.exported': '存档已导出',
-  'settings.about_text': 'v0.1.0 MVP · 图标与字体许可 · 无数据上传',
+  'settings.about_text': 'v0.2.1 · 图标与字体许可 · 无数据上传',
   'settings.no_save': '无法永久保存 · 当前仅内存存档',
 
   'rotate.title': '请旋转设备至横屏',

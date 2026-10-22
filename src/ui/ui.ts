@@ -14,6 +14,7 @@ import {
 } from '../data/buffs';
 import { K, type DifficultyId } from '../data/formulas';
 import { formatNumber, formatTime } from '../core/math';
+import { createClickGate } from '../core/debounce';
 import { buffDesc, buffName, t } from '../i18n';
 import type { Run } from '../game/run';
 import type { RunResult } from '../game/types';
@@ -51,12 +52,14 @@ function el<K extends Tag>(tag: K, cls?: string, text?: string): HTMLElementTagN
   return node;
 }
 
+const uiClick = createClickGate(200);
+
 function button(label: string, cls: string, onClick: () => void): HTMLButtonElement {
   const b = el('button', cls, label);
   b.type = 'button';
   b.addEventListener('click', (event) => {
     event.stopPropagation();
-    onClick();
+    uiClick(onClick);
   });
   return b;
 }
@@ -378,11 +381,6 @@ export class UI {
         key = `folder-${run.disk}-${run.folder}`;
         title = `${run.diskLetter}:\\${run.pathText}`;
         sub = `${run.folder}/5 · ${'■'.repeat(run.folder)}`;
-        break;
-      case 'wave_clear':
-        key = `wc-${run.disk}-${run.folder}-${run.wave}`;
-        title = `W${run.wave} 已清理`;
-        sub = t('phase.clear');
         break;
       case 'folder_clear':
         key = `fc-${run.disk}-${run.folder}`;
@@ -744,6 +742,7 @@ export class UI {
   }
 
   private renderKeyboard(save: SaveV1): void {
+    this.subpage.replaceChildren();
     const bonus = computeKeycapBonus(save.keycaps);
     const header = el('div', 'page-header');
     header.append(el('h2', 'page-title', `${t('keyboard.title')} · ${t('keyboard.installed', { owned: bonus.owned })}`));
@@ -807,6 +806,7 @@ export class UI {
   }
 
   private renderCodex(save: SaveV1): void {
+    this.subpage.replaceChildren();
     const header = el('div', 'page-header');
     header.append(el('h2', 'page-title', t('codex.title')));
     const tabs = el('div', 'tabs');

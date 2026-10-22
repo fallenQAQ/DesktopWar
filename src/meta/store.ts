@@ -9,6 +9,7 @@ import {
 import { KEYCAPS, computeKeycapBonus, type KeycapBonus } from '../data/keycaps';
 import { BUFF_BY_ID, type Rarity } from '../data/buffs';
 import { Rng } from '../core/rng';
+import { debounceTask } from '../core/debounce';
 import type { KeycapDrop, RunResult } from '../game/types';
 import {
   SAVE_KEY,
@@ -44,6 +45,7 @@ const NEXT_DIFFICULTY: Partial<Record<DifficultyId, DifficultyId>> = {
 
 export class MetaStore {
   save: SaveV1;
+  private readonly settingsPersist = debounceTask(() => persist(this.save), 500);
 
   constructor() {
     this.save = loadSave();
@@ -185,7 +187,11 @@ export class MetaStore {
 
   updateSettings(patch: Partial<SaveV1['settings']>): void {
     this.save.settings = { ...this.save.settings, ...patch };
-    persist(this.save);
+    this.settingsPersist.schedule();
+  }
+
+  flush(): void {
+    this.settingsPersist.flush();
   }
 
   markTutorialDone(): void {

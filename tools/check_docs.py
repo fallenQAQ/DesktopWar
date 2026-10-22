@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only consistency checks for the DesktopWar design docs (M0 gate).
+"""Read-only consistency checks for the DesktopWar docs (v0.2.0 alignment).
 
 Run: PYTHONIOENCODING=utf-8 python tools/check_docs.py
 Exit code 0 = all checks pass.
@@ -298,7 +298,7 @@ check("30 current font is system monospace", "系统等宽字体" in texts["30-�
 check("60 milestone table present",
       all(re.search(rf"\|\s*{m}\s*\|", texts["60-里程碑与验收.md"]) for m in
           ["M0", "M1", "M2", "M3", "M4", "M5", "M6"]))
-check("test count documented", "17" in readme and "17" in texts["60-里程碑与验收.md"])
+check("test count documented", "21" in readme and "21" in texts["60-里程碑与验收.md"])
 
 bad_current_paths = [
     "src/game/boss/*.ts", "src/data/waves.ts", "src/meta/economy.ts",
@@ -307,6 +307,19 @@ bad_current_paths = [
 ]
 check("no nonexistent current paths",
       not any(p in t for t in texts.values() for p in bad_current_paths))
+
+# changelogs keep only the latest change; detailed history lives in git
+for f, t in texts.items():
+    check(f"no historical version headings: {f}",
+          not re.search(r"^## .*(变更记录|版本记录|更新记录|调参记录)", t, flags=re.M))
+    m = re.search(r"^## \d+\. 最近改动\s*$", t, flags=re.M)
+    if m:
+        tail = t[m.end():]
+        rows = [ln for ln in tail.splitlines()
+                if ln.startswith("| v0.") or ln.startswith("| 2026-")]
+        check(f"single latest changelog row: {f}", len(rows) == 1, str(len(rows)))
+        check(f"latest changelog matches version: {f}",
+              bool(rows) and current_version in rows[0])
 
 # relative markdown links in docs + root README must resolve
 root_readme = (ROOT / "README.md").read_text(encoding="utf-8")

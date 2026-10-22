@@ -27,6 +27,7 @@ export const Flags = {
   Invulnerable: 8,
   WindingUp: 16,
   Homing: 32,
+  Warn: 64,
 } as const;
 
 export interface Components {
@@ -47,6 +48,7 @@ export interface Components {
   aiTimer: Float32Array;
   atkTimer: Float32Array;
   spawnTimer: Float32Array;
+  warnAge: Float32Array;
   baseX: Float32Array;
   baseY: Float32Array;
   orbit: Float32Array;
@@ -92,7 +94,7 @@ export class World {
     x: floats(), y: floats(), px: floats(), py: floats(), vx: floats(), vy: floats(),
     r: floats(), hp: floats(), maxHp: floats(), life: floats(), damage: floats(),
     fireCd: floats(), invuln: floats(), hitCd: floats(), aiTimer: floats(),
-    atkTimer: floats(), spawnTimer: floats(), baseX: floats(), baseY: floats(),
+    atkTimer: floats(), spawnTimer: floats(), warnAge: floats(), baseX: floats(), baseY: floats(),
     orbit: floats(), scale: floats(), flash: floats(), speed: floats(), atkInterval: floats(),
     kind: bytes(), tier: bytes(), proto: bytes(), styleIdx: bytes(),
     glyphGroup: bytes(), glyphIdx: bytes(), pierce: bytes(), hits: bytes(),
@@ -155,7 +157,7 @@ export class World {
     c.vx[index] = 0; c.vy[index] = 0; c.r[index] = 0; c.hp[index] = 0;
     c.maxHp[index] = 0; c.life[index] = 0; c.damage[index] = 0;
     c.fireCd[index] = 0; c.invuln[index] = 0; c.hitCd[index] = 0;
-    c.aiTimer[index] = 0; c.atkTimer[index] = 0; c.spawnTimer[index] = 0;
+    c.aiTimer[index] = 0; c.atkTimer[index] = 0; c.spawnTimer[index] = 0; c.warnAge[index] = 0;
     c.baseX[index] = 0; c.baseY[index] = 0; c.orbit[index] = 0;
     c.scale[index] = 1; c.flash[index] = 0; c.speed[index] = 0; c.atkInterval[index] = 0;
     c.kind[index] = kind; c.tier[index] = 0; c.proto[index] = 0;

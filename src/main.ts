@@ -78,8 +78,10 @@ class App {
     window.addEventListener('keydown', this.unlockAudio);
     window.addEventListener('resize', () => this.checkOrientation());
     window.addEventListener('orientationchange', () => this.checkOrientation());
+    window.addEventListener('pagehide', () => this.store.flush());
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) this.checkOrientation();
+      if (document.hidden) this.store.flush();
+      else this.checkOrientation();
     });
 
     this.ui.showBoot();
@@ -550,6 +552,7 @@ class App {
       ram: 5,
       maxRam: 5,
       playerAlpha: 0,
+      warnings: [],
     };
     this.renderer.render(idle, alpha, now);
   }

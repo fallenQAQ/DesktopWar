@@ -8,7 +8,7 @@
 
 单局 12–35 分钟，桌面浏览器与移动浏览器（仅横屏）打开即玩，首次加载后可离线缓存，运行时零第三方依赖、零网络请求、无账号无内购。
 
-> 当前版本 **v0.2.0**：M0–M4 已完成，M5/M6 部分完成。实现状态、已知缺口与后续工作见 [`docs/README.md`](docs/README.md) §1 与 [`docs/60-里程碑与验收.md`](docs/60-里程碑与验收.md) §1。
+> 当前版本 **v0.2.1**：M0–M4 已完成，M5/M6 部分完成；本版重构波次衔接（1.5s 无冻结、无字幕、前置出生预警）与输入去抖。实现状态、已知缺口与后续工作见 [`docs/README.md`](docs/README.md) §1 与 [`docs/60-里程碑与验收.md`](docs/60-里程碑与验收.md) §1。
 
 ## 玩法一览
 
@@ -30,12 +30,12 @@
 ```bash
 npm install
 npm run dev        # http://127.0.0.1:5173
-npm test           # Vitest 单元测试（17 项：公式 / RNG / 波次出生 / 键帽表）
+npm test           # Vitest 单元测试（21 项：公式 / RNG / 波次出生 / 键帽表 / 输入去抖 / 波次节奏）
 npm run typecheck  # tsc --noEmit
 npm run build      # 产出 dist/，可直接静态托管
 ```
 
-无后端、无环境变量，`dist/` 丢到任意静态站点即可运行（含 PWA Service Worker 离线缓存，首次加载后生效）。当前 `dist/` 154 KB，JS gzip ≈ 41 KB。
+无后端、无环境变量，`dist/` 丢到任意静态站点即可运行（含 PWA Service Worker 离线缓存，首次加载后生效）。当前 `dist/` 158 KB，JS gzip ≈ 43 KB。
 
 ## 项目结构
 

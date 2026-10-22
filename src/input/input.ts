@@ -107,8 +107,10 @@ export class Input {
     }
     if (key === 'escape') {
       event.preventDefault();
-      this.callbacks.onPause?.();
+      if (!event.repeat) this.callbacks.onPause?.();
+      return;
     }
+    if (event.repeat) return;
     this.callbacks.onAnyGesture?.();
   };
 

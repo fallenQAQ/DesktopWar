@@ -57,7 +57,7 @@ import type {
   RunOptions,
   RunResult,
 } from './types';
-import type { BossView, RenderView } from '../render/renderer';
+import type { BossView, RenderView, SpawnWarningView } from '../render/renderer';
 import type { Intent, StickState } from '../input/input';
 
 export type RunPhase =
@@ -72,6 +72,19 @@ export type RunPhase =
   | 'disk_clear'
   | 'bsod'
   | 'shutdown';
+
+export const PHASE_SECONDS = {
+  diskIntro: 2.4,
+  folderIntro: 1.0,
+  waveClear: 1.5,
+  folderClear: 1.0,
+  bossIntro: 1.4,
+  diskClear: 2.4,
+} as const;
+
+function inField(x: number, y: number): boolean {
+  return x >= 0 && x <= LOGICAL_W && y >= 0 && y <= LOGICAL_H;
+}
 
 export interface RunCallbacks {
   events: EventBus;
@@ -101,9 +114,12 @@ interface BossState {
   phase2Done: boolean;
 }
 
-interface WaveSpawn {
+interface PreparedSpawn {
   proto: ProtoId;
   elite: boolean;
+  x: number;
+  y: number;
+  prewarned: boolean;
 }
 
 const C = Kind;
@@ -186,7 +202,8 @@ export class Run {
   private gcCounter = 0;
   private raidTimer = 0;
   private folderNoHit = true;
-  private waveQueue: WaveSpawn[] = [];
+  private waveQueue: PreparedSpawn[] = [];
+  private pendingWave: PreparedSpawn[] | null = null;
   private spawnTimer = 0;
   private waveWatchdog = 0;
   private bossSummonCount = 0;
@@ -285,6 +302,8 @@ export class Run {
     this.world.clear(C.EnemyBullet);
     this.world.clear(C.PlayerBullet);
     this.world.clear(C.Fx);
+    this.pendingWave = null;
+    this.waveQueue = [];
     this.folder = 1;
     this.wave = 1;
     this.boss = null;
@@ -311,6 +330,7 @@ export class Run {
     this.setPhase('folder_intro');
     this.folderNoHit = true;
     this.pathText = this.makePath();
+    this.pendingWave = null;
     this.applyFolderStart();
   }
 
@@ -348,12 +368,34 @@ export class Run {
     return `${root}\\${dir}\\${tail}`;
   }
 
-  private startWave(wave: 1 | 2 | 3): void {
+  private planSpawns(wave: 1 | 2 | 3, prewarned = false): PreparedSpawn[] {
+    const plan = planWave(this.disk, this.difficulty, wave, this.folder, this.waveRng);
+    const entries: { proto: ProtoId; elite: boolean }[] = plan.protos.map((proto) => ({
+      proto,
+      elite: false,
+    }));
+    if (plan.elite) entries.push({ proto: plan.elite, elite: true });
+
+    const player = this.world.player();
+    const pi = this.world.indexOf(player);
+    const px = this.world.c.x[pi]!;
+    const py = this.world.c.y[pi]!;
+    return entries.map(({ proto, elite }) => {
+      const interior = proto === 'notifier' || proto === 'adware' || proto === 'updater';
+      const point = spawnPoint(this.rng, px, py, interior);
+      return { proto, elite, x: point.x, y: point.y, prewarned };
+    });
+  }
+
+  private startWave(wave: 1 | 2 | 3, prepared?: readonly PreparedSpawn[]): void {
     this.wave = wave;
     this.setPhase('wave');
-    const plan = planWave(this.disk, this.difficulty, wave, this.folder, this.waveRng);
-    this.waveQueue = plan.protos.map((proto) => ({ proto, elite: false }));
-    if (plan.elite) this.waveQueue.push({ proto: plan.elite, elite: true });
+    if (prepared) {
+      this.waveQueue = prepared.map((spawn) => ({ ...spawn }));
+    } else {
+      this.waveQueue = this.planSpawns(wave);
+      this.pendingWave = null;
+    }
     this.spawnTimer = 0;
     this.waveWatchdog = 0;
     if (wave === 3 && stacksOf(this.buffs, 'buff.trim') >= 2) {
@@ -364,17 +406,10 @@ export class Run {
   private spawnNext(): void {
     const next = this.waveQueue.shift();
     if (!next) return;
-    const p = this.world.player();
-    const pi = this.world.indexOf(p);
-    const interior =
-      next.proto === 'notifier' || next.proto === 'adware' || next.proto === 'updater';
-    const point = spawnPoint(
-      this.rng,
-      this.world.c.x[pi]!,
-      this.world.c.y[pi]!,
-      interior,
-    );
-    this.spawnEnemy(next.proto, next.elite, point.x, point.y);
+    if (this.pendingWave && this.pendingWave.length > 0) this.pendingWave.shift();
+    this.spawnEnemy(next.proto, next.elite, next.x, next.y, {
+      prewarned: next.prewarned,
+    });
   }
 
   private spawnEnemy(
@@ -389,6 +424,7 @@ export class Run {
       splitDepth?: number;
       scale?: number;
       styleIndex?: number;
+      prewarned?: boolean;
     },
   ): Entity {
     if (this.world.enemies.length >= LIMITS.enemies) return 0;
@@ -419,6 +455,8 @@ export class Run {
     c.proto[idx] = PROTO_ORDER.indexOf(proto);
     c.styleIdx[idx] = options?.styleIndex ?? this.styleIndex;
     c.spawnTimer[idx] = elite ? 0.8 : 0.4;
+    c.warnAge[idx] = options?.prewarned ? 0.2 : 0;
+    c.flags[idx] = Flags.Alive | Flags.Warn;
     c.atkTimer[idx] = proto === 'updater' ? 8 : atkInterval + 0.2;
     c.speed[idx] = speed;
     c.atkInterval[idx] = atkInterval;
@@ -451,26 +489,30 @@ export class Run {
 
     switch (this.phase) {
       case 'disk_intro':
-        if (this.phaseElapsed >= 4.0) this.startFolderIntro();
+        if (this.phaseElapsed >= PHASE_SECONDS.diskIntro) this.startFolderIntro();
         break;
       case 'folder_intro':
-        if (this.phaseElapsed >= 1.4) this.startWave(1);
+        if (this.phaseElapsed >= PHASE_SECONDS.folderIntro) this.startWave(1);
         break;
       case 'wave':
         this.updateCombat(dt);
         this.updateWave(dt);
         break;
       case 'wave_clear':
-        if (this.phaseElapsed >= 1.2) {
-          if (this.wave < 3) this.startWave((this.wave + 1) as 2 | 3);
-          else this.completeFolder();
+        this.updateCombat(dt);
+        if (this.phaseElapsed >= PHASE_SECONDS.waveClear) {
+          if (this.wave < 3) {
+            this.startWave((this.wave + 1) as 2 | 3, this.pendingWave ?? undefined);
+          } else {
+            this.completeFolder();
+          }
         }
         break;
       case 'folder_clear':
-        if (this.phaseElapsed >= 1.6) this.openBuff('folder');
+        if (this.phaseElapsed >= PHASE_SECONDS.folderClear) this.openBuff('folder');
         break;
       case 'boss_intro':
-        if (this.phaseElapsed >= 2.0) {
+        if (this.phaseElapsed >= PHASE_SECONDS.bossIntro) {
           this.setPhase('boss');
           if (this.boss) {
             this.boss.active = true;
@@ -483,7 +525,7 @@ export class Run {
         this.updateBoss(dt);
         break;
       case 'disk_clear':
-        if (this.phaseElapsed >= 4.0) {
+        if (this.phaseElapsed >= PHASE_SECONDS.diskClear) {
           this.disk += 1;
           this.startDiskIntro();
         }
@@ -746,11 +788,21 @@ export class Run {
       const e = w.enemies[i]!;
       if (!w.isAlive(e)) continue;
       const idx = w.indexOf(e);
+      if ((c.flags[idx]! & Flags.Warn) !== 0) {
+        c.warnAge[idx] = c.warnAge[idx]! + dt;
+      }
       if (c.tier[idx]! === 2) continue;
       const spawn = c.spawnTimer[idx]!;
       if (spawn > 0) {
-        c.spawnTimer[idx] = Math.max(0, spawn - dt);
+        const next = Math.max(0, spawn - dt);
+        c.spawnTimer[idx] = next;
+        if (next === 0 && inField(c.x[idx]!, c.y[idx]!)) {
+          c.flags[idx] = c.flags[idx]! & ~Flags.Warn;
+        }
         continue;
+      }
+      if ((c.flags[idx]! & Flags.Warn) !== 0 && inField(c.x[idx]!, c.y[idx]!)) {
+        c.flags[idx] = c.flags[idx]! & ~Flags.Warn;
       }
       const wx = c.x[idx]!;
       const wy = c.y[idx]!;
@@ -1305,6 +1357,7 @@ export class Run {
     const p = this.world.player();
     const pi = this.world.indexOf(p);
     this.world.c.invuln[pi] = Math.max(this.world.c.invuln[pi]!, 0.25);
+    this.pendingWave = this.wave < 3 ? this.planSpawns((this.wave + 1) as 2 | 3, true) : null;
     this.events.emit({ type: 'waveClear', wave: this.wave });
     this.setPhase('wave_clear');
   }
@@ -1603,6 +1656,23 @@ export class Run {
         window: boss.windowLeft,
       };
     }
+    const warnings: SpawnWarningView[] = [];
+    if ((this.phase === 'wave_clear' || this.phase === 'wave') && this.pendingWave) {
+      const age =
+        this.phase === 'wave_clear'
+          ? this.phaseElapsed
+          : PHASE_SECONDS.waveClear + this.phaseElapsed;
+      const progress = Math.min(1, age / PHASE_SECONDS.waveClear);
+      for (const spawn of this.pendingWave) {
+        warnings.push({
+          x: spawn.x,
+          y: spawn.y,
+          size: spawn.elite ? 56 : 48,
+          progress,
+          age,
+        });
+      }
+    }
     return {
       active: this.playerAlpha > 0,
       world: this.world,
@@ -1624,6 +1694,7 @@ export class Run {
       ram: this.ram,
       maxRam: this.maxRam,
       playerAlpha: this.playerAlpha,
+      warnings,
     };
   }
 }
