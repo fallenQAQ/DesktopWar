@@ -298,7 +298,7 @@ check("30 current font is system monospace", "系统等宽字体" in texts["30-�
 check("60 milestone table present",
       all(re.search(rf"\|\s*{m}\s*\|", texts["60-里程碑与验收.md"]) for m in
           ["M0", "M1", "M2", "M3", "M4", "M5", "M6"]))
-check("test count documented", "21" in readme and "21" in texts["60-里程碑与验收.md"])
+check("test count documented", "22" in readme and "22" in texts["60-里程碑与验收.md"])
 
 bad_current_paths = [
     "src/game/boss/*.ts", "src/data/waves.ts", "src/meta/economy.ts",

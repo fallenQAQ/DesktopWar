@@ -1588,6 +1588,26 @@ input:focus-visible {
 
 /* --------------------------------------------------------------- mobile */
 @media (max-height: 520px) {
+  .page-header {
+    gap: 10px;
+    min-height: 40px;
+    margin-bottom: 12px;
+  }
+  .page-title {
+    font-size: 18px;
+    line-height: 1.2;
+  }
+  .key-stats {
+    gap: 8px;
+    font-size: 10px;
+    flex-wrap: wrap;
+  }
+  .page-header > .btn:last-child {
+    height: 36px;
+    min-width: 72px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
   .hub-header {
     padding: 16px 24px;
   }

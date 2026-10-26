@@ -591,20 +591,25 @@ export class Run {
     this.world.c.y[pi] = clamp(y, 16, LOGICAL_H - 48);
   }
 
+  private applyAim(x: number, y: number): void {
+    const n = normalize(x, y);
+    if (n.x !== 0 || n.y !== 0) {
+      this.aimX = n.x;
+      this.aimY = n.y;
+    }
+  }
+
   private updateAim(dt: number): void {
     if (this.intent.aimActive) {
       this.aimIdle = 0;
       this.autoLocked = false;
-      const n = normalize(this.intent.aimX, this.intent.aimY);
-      if (n.x !== 0 || n.y !== 0) {
-        this.aimX = n.x;
-        this.aimY = n.y;
-      }
+      this.applyAim(this.intent.aimX, this.intent.aimY);
       return;
     }
     this.aimIdle += dt;
     if (!this.autoLock || this.aimIdle < 0.4) {
       this.autoLocked = false;
+      this.applyAim(this.intent.aimX, this.intent.aimY);
       return;
     }
     const p = this.world.player();
@@ -637,6 +642,7 @@ export class Run {
       this.autoLocked = true;
     } else {
       this.autoLocked = false;
+      this.applyAim(this.intent.aimX, this.intent.aimY);
     }
   }
 
