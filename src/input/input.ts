@@ -239,6 +239,7 @@ export class Input {
         ay = dy / d;
         aimActive = true;
         aimMode = 'stick';
+        this.lastAim = { x: ax, y: ay };
       }
     }
 

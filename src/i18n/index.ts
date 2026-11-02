@@ -78,6 +78,7 @@ const zhCN: Record<string, string> = {
   'pause.buffs': '增益',
   'pause.legendary': '传奇 {n}/3',
   'pause.hint': 'WASD 移动 · 鼠标瞄准 · 自动开火',
+  'pause.hint_touch': '左摇杆移动 · 右摇杆控制开火方向 · 自动开火',
 
   'bsod.title': '蓝屏',
   'bsod.line1': '你的电脑遇到问题，需要重新启动。',
@@ -172,7 +173,7 @@ const zhCN: Record<string, string> = {
   'rotate.title': '请旋转设备至横屏',
   'rotate.desc': '本作仅支持横屏，旋转后保持暂停，由玩家继续',
   'toast.controls': 'WASD 移动 · 鼠标瞄准 · 自动开火 · Esc 暂停',
-  'toast.controls_touch': '左摇杆移动 · 右摇杆瞄准 · 自动开火',
+  'toast.controls_touch': '左摇杆移动 · 右摇杆控制开火方向 · 自动开火',
   'toast.keycap': '获得键帽：{label}（{rarity}）',
   'toast.duplicate': '重复 {label} → +{n} 碎片',
   'toast.unlock': '已解锁电源计划：{name}',

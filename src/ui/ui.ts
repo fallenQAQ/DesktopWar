@@ -528,7 +528,8 @@ export class UI {
         win.append(confirm);
       }),
     );
-    win.append(table, meta, el('div', 'task-hint', t('pause.hint')), footer);
+    const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+    win.append(table, meta, el('div', 'task-hint', t(coarse ? 'pause.hint_touch' : 'pause.hint')), footer);
     this.modal.append(backdrop, win);
   }
 

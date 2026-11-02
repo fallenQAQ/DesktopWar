@@ -107,34 +107,59 @@ export class Renderer {
   readonly ctx: CanvasRenderingContext2D;
   scale = 1;
   dpr = 1;
+  private readonly stage: HTMLElement;
+  private readonly frame: HTMLElement;
   private bg: HTMLCanvasElement | null = null;
   private bgKey = '';
   private shakePower = 0;
   private shakeTime = 0;
   private texts: FloatingText[] = [];
   private lastFrame = performance.now();
+  private resizeQueued = false;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, stage: HTMLElement) {
     this.canvas = canvas;
+    this.stage = stage;
+    this.frame = stage.parentElement ?? stage;
     const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
     if (!ctx) throw new Error('Canvas 2D unavailable');
     this.ctx = ctx;
     this.resize();
-    window.addEventListener('resize', () => this.resize());
-    new ResizeObserver(() => this.resize()).observe(document.body);
+    window.addEventListener('resize', this.scheduleResize);
+    window.addEventListener('orientationchange', this.scheduleResize);
+    window.visualViewport?.addEventListener('resize', this.scheduleResize);
+    window.visualViewport?.addEventListener('scroll', this.scheduleResize);
+    new ResizeObserver(this.scheduleResize).observe(this.frame);
+    // 首帧布局（如移动端地址栏、字体加载）可能晚于构造期，再对齐一次。
+    requestAnimationFrame(this.scheduleResize);
   }
 
+  private scheduleResize = (): void => {
+    if (this.resizeQueued) return;
+    this.resizeQueued = true;
+    requestAnimationFrame(() => {
+      this.resizeQueued = false;
+      this.resize();
+    });
+  };
+
   resize(): void {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    this.scale = Math.min(vw / LOGICAL_W, vh / LOGICAL_H);
+    const style = getComputedStyle(this.frame);
+    const rect = this.frame.getBoundingClientRect();
+    const padX = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+    const padY = (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0);
+    const availW = Math.max(1, rect.width - padX);
+    const availH = Math.max(1, rect.height - padY);
+    this.scale = Math.min(availW / LOGICAL_W, availH / LOGICAL_H);
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const cssW = Math.max(1, Math.round(LOGICAL_W * this.scale));
-    const cssH = Math.max(1, Math.round(LOGICAL_H * this.scale));
-    this.canvas.style.width = `${cssW}px`;
-    this.canvas.style.height = `${cssH}px`;
-    this.canvas.width = Math.round(LOGICAL_W * this.dpr);
-    this.canvas.height = Math.round(LOGICAL_H * this.dpr);
+    this.stage.style.width = `${LOGICAL_W * this.scale}px`;
+    this.stage.style.height = `${LOGICAL_H * this.scale}px`;
+    const bw = Math.round(LOGICAL_W * this.dpr);
+    const bh = Math.round(LOGICAL_H * this.dpr);
+    if (this.canvas.width !== bw || this.canvas.height !== bh) {
+      this.canvas.width = bw;
+      this.canvas.height = bh;
+    }
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.bg = null;
   }
@@ -245,7 +270,8 @@ export class Renderer {
 
     this.drawStick(view.rightStick, view.touchMode ? 'right' : '');
     this.drawStick(view.leftStick, view.touchMode ? 'left' : '');
-    this.drawReticle(view);
+    if (view.touchMode) this.drawAimGuide(view, nowMs);
+    else this.drawReticle(view);
     this.updateTexts(dt);
     this.drawTexts();
   }
@@ -531,20 +557,83 @@ export class Renderer {
     ctx.restore();
   }
 
+  private drawAimGuide(view: RenderView, nowMs: number): void {
+    const ctx = this.ctx;
+    const w = view.world;
+    const p = w.player();
+    const idx = w.indexOf(p);
+    const px = w.c.x[idx]!;
+    const py = w.c.y[idx]!;
+    const ax = view.aimX;
+    const ay = view.aimY;
+    const stick = view.rightStick;
+    const stickDx = stick.active ? stick.x - stick.originX : 0;
+    const stickDy = stick.active ? stick.y - stick.originY : 0;
+    const power = stick.active ? clamp((Math.hypot(stickDx, stickDy) - 8) / 40, 0, 1) : 0;
+    const color = view.autoLocked ? '#FBBF24' : '#38BDF8';
+    const time = nowMs / 1000;
+    const pulse = 0.85 + 0.15 * Math.sin(time * 6);
+    const start = 22;
+    const wanted = 180 + 70 * power;
+    const margin = 12;
+    const limit = Math.min(
+      ax > 0 ? (LOGICAL_W - margin - px) / ax : ax < 0 ? (margin - px) / ax : Infinity,
+      ay > 0 ? (LOGICAL_H - margin - py) / ay : ay < 0 ? (margin - py) / ay : Infinity,
+    );
+    const length = Math.max(start, Math.min(wanted, limit));
+    const sx = px + ax * start;
+    const sy = py + ay * start;
+    const ex = px + ax * length;
+    const ey = py + ay * length;
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = (0.07 + 0.09 * power) * pulse;
+    ctx.lineWidth = 4 + 2 * power;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+
+    ctx.globalAlpha = (0.32 + 0.5 * power) * pulse;
+    ctx.lineWidth = 1.2 + 0.6 * power;
+    ctx.setLineDash([9, 7]);
+    ctx.lineDashOffset = -time * 34;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.globalAlpha = (0.45 + 0.45 * power) * pulse;
+    ctx.fillStyle = color;
+    ctx.translate(ex, ey);
+    ctx.rotate(Math.atan2(ay, ax));
+    ctx.beginPath();
+    ctx.moveTo(11, 0);
+    ctx.lineTo(-5, -7);
+    ctx.lineTo(-2, 0);
+    ctx.lineTo(-5, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = (0.3 + 0.4 * power) * pulse;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   private drawReticle(view: RenderView): void {
     const ctx = this.ctx;
-    let x: number;
-    let y: number;
-    if (view.touchMode) {
-      const p = view.world.player();
-      const idx = view.world.indexOf(p);
-      x = view.world.c.x[idx]! + view.aimX * 160;
-      y = view.world.c.y[idx]! + view.aimY * 160;
-    } else {
-      x = view.pointerX;
-      y = view.pointerY;
-    }
-    const r = view.touchMode ? 14 : 12;
+    const x = view.pointerX;
+    const y = view.pointerY;
+    const r = 12;
     ctx.save();
     ctx.translate(x, y);
     ctx.strokeStyle = view.autoLocked ? '#FBBF24' : '#38BDF8';

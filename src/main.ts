@@ -3,6 +3,7 @@ import { AudioEngine } from './audio/audio';
 import { EventBus } from './core/events';
 import { startLoop } from './core/loop';
 import { randomSeed } from './core/rng';
+import { installViewportGuards } from './core/viewport';
 import { RARITY_LABEL, type Rarity } from './data/buffs';
 import type { DifficultyId } from './data/formulas';
 import { World } from './ecs/world';
@@ -39,10 +40,12 @@ class App {
   private portrait = false;
 
   constructor() {
+    installViewportGuards();
     const canvas = document.getElementById('world') as HTMLCanvasElement | null;
+    const stage = document.getElementById('stage');
     const uiRoot = document.getElementById('ui');
-    if (!canvas || !uiRoot) throw new Error('DOM shell missing');
-    this.renderer = new Renderer(canvas);
+    if (!canvas || !stage || !uiRoot) throw new Error('DOM shell missing');
+    this.renderer = new Renderer(canvas, stage);
     this.audio.setVolumes(this.store.save.settings.musicVolume, this.store.save.settings.sfxVolume);
     this.input = new Input(canvas, {
       onPause: () => this.handlePause(),
@@ -85,6 +88,7 @@ class App {
     });
 
     this.ui.showBoot();
+    this.checkOrientation();
     this.registerServiceWorker();
     startLoop(
       (dt) => this.step(dt),
@@ -157,7 +161,8 @@ class App {
     this.audio.resume();
     this.audio.startMusic('battle');
     if (!this.store.save.flags.tutorialDone) {
-      this.ui.toast(t('toast.controls'));
+      const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+      this.ui.toast(t(coarse ? 'toast.controls_touch' : 'toast.controls'));
       this.store.markTutorialDone();
     }
     this.checkOrientation();
