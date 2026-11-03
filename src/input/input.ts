@@ -81,17 +81,10 @@ export class Input {
     window.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
     window.addEventListener('resize', this.updateRect);
     document.addEventListener('scroll', this.updateRect, true);
-    window.addEventListener('pointerdown', this.trackModality, { passive: true });
-    window.addEventListener('pointermove', this.trackModality, { passive: true });
   }
 
   private updateRect = (): void => {
     this.rect = this.canvas.getBoundingClientRect();
-  };
-
-  private trackModality = (event: PointerEvent): void => {
-    if (event.pointerType === 'mouse') this.touchMode = false;
-    else if (event.pointerType === 'touch' || event.pointerType === 'pen') this.touchMode = true;
   };
 
   setScale(scale: number): void {
@@ -143,6 +136,7 @@ export class Input {
     this.updateRect();
     const p = this.toLogical(event.clientX, event.clientY);
     if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+      this.touchMode = true;
       const stick = p.x < LOGICAL_W / 2 ? this.leftStick : this.rightStick;
       if (stick.active) return;
       stick.active = true;
@@ -165,6 +159,7 @@ export class Input {
     this.updateRect();
     const p = this.toLogical(event.clientX, event.clientY);
     if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+      this.touchMode = true;
       const stick = this.leftStick.pointerId === event.pointerId
         ? this.leftStick
         : this.rightStick.pointerId === event.pointerId
@@ -244,7 +239,6 @@ export class Input {
         ay = dy / d;
         aimActive = true;
         aimMode = 'stick';
-        this.lastAim = { x: ax, y: ay };
       }
     }
 

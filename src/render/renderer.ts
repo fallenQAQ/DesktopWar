@@ -270,8 +270,7 @@ export class Renderer {
 
     this.drawStick(view.rightStick, view.touchMode ? 'right' : '');
     this.drawStick(view.leftStick, view.touchMode ? 'left' : '');
-    if (view.touchMode) this.drawAimGuide(view, nowMs);
-    else this.drawReticle(view);
+    this.drawReticle(view);
     this.updateTexts(dt);
     this.drawTexts();
   }
@@ -557,83 +556,20 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawAimGuide(view: RenderView, nowMs: number): void {
-    const ctx = this.ctx;
-    const w = view.world;
-    const p = w.player();
-    const idx = w.indexOf(p);
-    const px = w.c.x[idx]!;
-    const py = w.c.y[idx]!;
-    const ax = view.aimX;
-    const ay = view.aimY;
-    const stick = view.rightStick;
-    const stickDx = stick.active ? stick.x - stick.originX : 0;
-    const stickDy = stick.active ? stick.y - stick.originY : 0;
-    const power = stick.active ? clamp((Math.hypot(stickDx, stickDy) - 8) / 40, 0, 1) : 0;
-    const color = view.autoLocked ? '#FBBF24' : '#38BDF8';
-    const time = nowMs / 1000;
-    const pulse = 0.85 + 0.15 * Math.sin(time * 6);
-    const start = 22;
-    const wanted = 180 + 70 * power;
-    const margin = 12;
-    const limit = Math.min(
-      ax > 0 ? (LOGICAL_W - margin - px) / ax : ax < 0 ? (margin - px) / ax : Infinity,
-      ay > 0 ? (LOGICAL_H - margin - py) / ay : ay < 0 ? (margin - py) / ay : Infinity,
-    );
-    const length = Math.max(start, Math.min(wanted, limit));
-    const sx = px + ax * start;
-    const sy = py + ay * start;
-    const ex = px + ax * length;
-    const ey = py + ay * length;
-
-    ctx.save();
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = (0.07 + 0.09 * power) * pulse;
-    ctx.lineWidth = 4 + 2 * power;
-    ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(ex, ey);
-    ctx.stroke();
-
-    ctx.globalAlpha = (0.32 + 0.5 * power) * pulse;
-    ctx.lineWidth = 1.2 + 0.6 * power;
-    ctx.setLineDash([9, 7]);
-    ctx.lineDashOffset = -time * 34;
-    ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(ex, ey);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.globalAlpha = (0.45 + 0.45 * power) * pulse;
-    ctx.fillStyle = color;
-    ctx.translate(ex, ey);
-    ctx.rotate(Math.atan2(ay, ax));
-    ctx.beginPath();
-    ctx.moveTo(11, 0);
-    ctx.lineTo(-5, -7);
-    ctx.lineTo(-2, 0);
-    ctx.lineTo(-5, 7);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    ctx.save();
-    ctx.globalAlpha = (0.3 + 0.4 * power) * pulse;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(sx, sy, 4, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
   private drawReticle(view: RenderView): void {
     const ctx = this.ctx;
-    const x = view.pointerX;
-    const y = view.pointerY;
-    const r = 12;
+    let x: number;
+    let y: number;
+    if (view.touchMode) {
+      const p = view.world.player();
+      const idx = view.world.indexOf(p);
+      x = view.world.c.x[idx]! + view.aimX * 160;
+      y = view.world.c.y[idx]! + view.aimY * 160;
+    } else {
+      x = view.pointerX;
+      y = view.pointerY;
+    }
+    const r = view.touchMode ? 14 : 12;
     ctx.save();
     ctx.translate(x, y);
     ctx.strokeStyle = view.autoLocked ? '#FBBF24' : '#38BDF8';

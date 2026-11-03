@@ -161,7 +161,7 @@ class App {
     this.audio.resume();
     this.audio.startMusic('battle');
     if (!this.store.save.flags.tutorialDone) {
-      this.ui.toast(t(this.input.touchMode ? 'toast.controls_touch' : 'toast.controls'));
+      this.ui.toast(t('toast.controls'));
       this.store.markTutorialDone();
     }
     this.checkOrientation();
@@ -195,7 +195,7 @@ class App {
     if (this.run.phase === 'bsod' || this.run.phase === 'shutdown') return;
     this.run.addPause(reason);
     this.audio.suspend();
-    this.ui.showPause(this.run, this.input.touchMode);
+    this.ui.showPause(this.run);
   }
 
   private autoPause(): void {
@@ -204,7 +204,7 @@ class App {
     if (this.run.phase === 'bsod' || this.run.phase === 'shutdown') return;
     this.run.addPause('blur');
     this.audio.suspend();
-    this.ui.showPause(this.run, this.input.touchMode);
+    this.ui.showPause(this.run);
   }
 
   private resumeRun(): void {
@@ -229,7 +229,7 @@ class App {
 
   private closeSettings(): void {
     if (this.settingsFrom === 'pause' && this.run && this.scene === 'run') {
-      this.ui.showPause(this.run, this.input.touchMode);
+      this.ui.showPause(this.run);
       return;
     }
     this.scene = 'hub';
@@ -488,7 +488,7 @@ class App {
       this.run.removePause('system');
       if (this.run.paused) {
         this.audio.suspend();
-        this.ui.showPause(this.run, this.input.touchMode);
+        this.ui.showPause(this.run);
       } else {
         this.audio.resume();
       }

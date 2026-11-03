@@ -491,7 +491,7 @@ export class UI {
   }
 
   // ----------------------------------------------------------------- pause
-  showPause(run: Run, touchMode: boolean): void {
+  showPause(run: Run): void {
     this.clearModal();
     this.modal.classList.remove('hidden');
     const backdrop = el('div', 'backdrop');
@@ -528,7 +528,7 @@ export class UI {
         win.append(confirm);
       }),
     );
-    win.append(table, meta, el('div', 'task-hint', t(touchMode ? 'pause.hint_touch' : 'pause.hint')), footer);
+    win.append(table, meta, el('div', 'task-hint', t('pause.hint')), footer);
     this.modal.append(backdrop, win);
   }
 
